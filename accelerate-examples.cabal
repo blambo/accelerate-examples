@@ -28,6 +28,36 @@ Executable accelerate-examples
                         tests/image-processing
                         tests/io
 
+  other-modules:        Backpermute,
+                        BlackScholes,
+                        BlockCopy,
+                        Benchmark,
+                        Canny,
+                        Config,
+                        DotP,
+                        Filter,
+                        Fold,
+                        IntegralImage,
+                        Map,
+                        PGM,
+                        Permute,
+                        Radix,
+                        Random,
+                        SASUM,
+                        SAXPY,
+                        SMVM,
+                        SMVM.Matrix,
+                        SMVM.MatrixMarket,
+                        ScanSeg,
+                        SliceExamples,
+                        Stencil,
+                        Stencil2,
+                        Test,
+                        Util,
+                        Validate,
+                        Zip,
+                        ZipWith
+
   c-sources:            tests/io/fill_with_values.cpp
   extra-libraries:      stdc++
 
