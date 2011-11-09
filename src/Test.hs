@@ -52,11 +52,6 @@ import System.Console.CmdArgs                           (getVerbosity, Verbosity
 
 import Data.Array.Accelerate                            (Acc)
 import qualified Data.Array.Accelerate                  as Acc
-import qualified Data.Array.Accelerate.Interpreter      as Interpreter
-
-#ifdef ACCELERATE_CUDA_BACKEND
-import qualified Data.Array.Accelerate.CUDA             as CUDA
-#endif
 
 
 data Status
@@ -175,17 +170,6 @@ allTests cfg = sequence'
 
 #ifdef ACCELERATE_IO
     mkIO name desc act = return $ TestIO name desc act
-#endif
-
-
--- How to evaluate Accelerate programs with the chosen backend?
---
-backend :: Acc.Arrays a => Config -> Acc a -> a
-backend cfg =
-  case cfgBackend cfg of
-    Interpreter -> Interpreter.run
-#ifdef ACCELERATE_CUDA_BACKEND
-    CUDA        -> CUDA.run
 #endif
 
 
