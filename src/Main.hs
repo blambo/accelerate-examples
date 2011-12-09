@@ -13,6 +13,7 @@ import Config
 import Data.Word
 import Data.Label
 import Foreign.Ptr
+import Criterion.Main                                   ( defaultMain, bench, whnf )
 import Foreign.ForeignPtr
 import System.Environment
 import System.IO.Unsafe
@@ -140,16 +141,18 @@ frame render size scale zoom degree time = G.scale zoom' zoom' pic
     x           = 1 + (time ** 1.5) * 0.005
 
     -- Compute the image
-    (Array _ adata) = render $ makeImage size scale degree x
+    arrPixels   = render $ makeImage size scale degree x
 
     -- Wrap the array data in a Foreign pointer and turn into a Gloss picture
-    {-# NOINLINE f_ptr #-}
-    f_ptr       = unsafePerformIO $ newForeignPtr_ (castPtr ptr)
-    ((),ptr)    = ptrsOfArrayData adata
+    {-# NOINLINE rawData #-}
+    rawData     = let (Array _ adata)   = arrPixels
+                      ((),ptr)          = ptrsOfArrayData adata
+                  in
+                  unsafePerformIO       $ newForeignPtr_ (castPtr ptr)
 
     pic         = G.bitmapOfForeignPtr
                       size size                 -- raw image size
-                      f_ptr                     -- the image data
+                      rawData                   -- the image data
                       False                     -- don't cache this in texture memory
 
     -- Zoom the image so we get a bigger window.
@@ -159,17 +162,21 @@ frame render size scale zoom degree time = G.scale zoom' zoom' pic
 -- Main -----------------------------------------------------------------------
 main :: IO ()
 main
-  = do  opts    <- processArgs =<< getArgs
-        let size        = get optSize opts
-            zoom        = get optZoom opts
-            scale       = get optScale opts
-            degree      = get optDegree opts
-            render      = run opts
+  = do  (config, nops) <- processArgs =<< getArgs
+        let size        = get optSize config
+            zoom        = get optZoom config
+            scale       = get optScale config
+            degree      = get optDegree config
+            render      = run config
 
-        G.animateInWindow
-            "Quasicrystals"
-            (size  * zoom, size * zoom)
-            (10, 10)
-            G.black
-            (frame render size scale zoom degree)
+        if get optBench config
+           then withArgs nops $ defaultMain
+                    [ bench "crystal" $ whnf (render . makeImage size scale degree) 1.0]
+
+           else G.animateInWindow
+                    "Quasicrystals"
+                    (size  * zoom, size * zoom)
+                    (10, 10)
+                    G.black
+                    (frame render size scale zoom degree)
 

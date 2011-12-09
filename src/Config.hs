@@ -2,7 +2,7 @@
 
 module Config (
 
-  Options, optBackend, optSize, optZoom, optScale, optDegree,
+  Options, optBackend, optSize, optZoom, optScale, optDegree, optBench,
   processArgs, run
 
 ) where
@@ -24,12 +24,13 @@ data Backend = Interpreter
 
 data Options = Options
   {
-    _optBackend :: Backend
-  , _optSize    :: Int
-  , _optZoom    :: Int
-  , _optScale   :: Float
-  , _optDegree  :: Int
-  , _optHelp    :: Bool
+    _optBackend         :: Backend
+  , _optSize            :: Int
+  , _optZoom            :: Int
+  , _optScale           :: Float
+  , _optDegree          :: Int
+  , _optBench           :: Bool
+  , _optHelp            :: Bool
   }
   deriving Show
 
@@ -37,12 +38,13 @@ $(mkLabels [''Options])
 
 defaultOptions :: Options
 defaultOptions = Options
-  { _optBackend    = maxBound
-  , _optSize       = 200
-  , _optZoom       = 3
-  , _optScale      = 30
-  , _optDegree     = 5
-  , _optHelp       = False
+  { _optBackend         = maxBound
+  , _optSize            = 200
+  , _optZoom            = 3
+  , _optScale           = 30
+  , _optDegree          = 5
+  , _optBench           = False
+  , _optHelp            = False
   }
 
 
@@ -60,19 +62,21 @@ options =
 #ifdef ACCELERATE_CUDA_BACKEND
   , Option []   ["cuda"]        (NoArg  (set optBackend CUDA))          "implementation for NVIDIA GPUs (parallel)"
 #endif
-  , Option []   ["size"]        (ReqArg (set optSize . read) "INT")     "visualisation size (default 200)"
-  , Option []   ["zoom"]        (ReqArg (set optZoom . read) "INT")     "pixel replication factor (default 3)"
-  , Option []   ["scale"]       (ReqArg (set optScale . read) "FLOAT")  "feature size of visualisation (default 30)"
-  , Option []   ["degree"]      (ReqArg (set optDegree . read) "INT")   "number of waves to sum for each point (default 5)"
+  , Option []   ["size"]        (ReqArg (set optSize . read) "INT")     "visualisation size (200)"
+  , Option []   ["zoom"]        (ReqArg (set optZoom . read) "INT")     "pixel replication factor (3)"
+  , Option []   ["scale"]       (ReqArg (set optScale . read) "FLOAT")  "feature size of visualisation (30)"
+  , Option []   ["degree"]      (ReqArg (set optDegree . read) "INT")   "number of waves to sum for each point (5)"
+  , Option []   ["benchmark"]   (NoArg  (set optBench True))            "benchmark instead of displaying animation (False)"
   , Option "h?" ["help"]        (NoArg  (set optHelp True))             "show help message"
   ]
 
 
-processArgs :: [String] -> IO Options
+processArgs :: [String] -> IO (Options, [String])
 processArgs argv =
   case getOpt' Permute options argv of
-    (o,_,_,[])  -> case foldl (flip id) defaultOptions o of
-                     opts | False <- get optHelp opts   -> return opts
+    (o,_,n,[])  -> case foldl (flip id) defaultOptions o of
+                     opts | False <- get optHelp opts   -> return (opts, n)
+                     opts | True  <- get optBench opts  -> return (opts, "--help":n)
                      _                                  -> putStrLn (helpMsg []) >> exitSuccess
     (_,_,_,err) -> error (helpMsg err)
   where

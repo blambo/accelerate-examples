@@ -27,6 +27,7 @@ Executable accelerate-crystal
 
   Build-depends:        accelerate      == 0.9.*,
                         base            == 4.*,
+                        criterion       >= 0.5,
                         fclabels        >= 1.0,
                         gloss           >= 1.5
 
