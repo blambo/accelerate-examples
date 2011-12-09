@@ -48,11 +48,11 @@ defaultOptions = Options
   }
 
 
-run :: Arrays a => Options -> Acc a -> a
-run opts = case _optBackend opts of
-  Interpreter   -> Interp.run
+run :: (Arrays a, Arrays b) => Options -> (Acc a -> Acc b) -> a -> b
+run opts f = case _optBackend opts of
+  Interpreter   -> head . Interp.stream f . return
 #ifdef ACCELERATE_CUDA_BACKEND
-  CUDA          -> CUDA.run
+  CUDA          -> CUDA.run1 f
 #endif
 
 

@@ -1,4 +1,3 @@
-{-# LANGUAGE RankNTypes #-}
 -- Quasicrystals demo.
 --
 -- Based on code from:
@@ -13,11 +12,13 @@ import Config
 import Data.Word
 import Data.Label
 import Foreign.Ptr
+import Control.Monad
+import Control.Exception
 import Criterion.Main                                   ( defaultMain, bench, whnf )
 import Foreign.ForeignPtr
 import System.Environment
 import System.IO.Unsafe
-import Data.Array.Accelerate                            ( Array, Exp, Acc, DIM2, Z(..), (:.)(..) )
+import Data.Array.Accelerate                            ( Array, Scalar, Exp, Acc, DIM2, Z(..), (:.)(..) )
 import qualified Data.Array.Accelerate                  as A
 import qualified Graphics.Gloss                         as G
 
@@ -55,28 +56,24 @@ type RGBA   = Word32
 type Bitmap = Array DIM2 RGBA
 
 -- | Action to render a frame
-type Render = Acc Bitmap -> Bitmap
+type Render = Scalar Phi -> Bitmap
 
 
 -- Point ----------------------------------------------------------------------
 -- | Compute a single point of the visualisation.
-quasicrystal :: Size -> Scale -> Degree -> Phi -> Exp DIM2 -> Exp R
+quasicrystal :: Size -> Scale -> Degree -> Acc (Scalar Phi) -> Exp DIM2 -> Exp R
 quasicrystal size scale degree phi p
   = waves degree phi $ point size scale p
 
 
 -- | Sum up all the waves at a particular point.
-waves :: Degree -> Phi -> Exp R2 -> Exp R
+waves :: Degree -> Acc (Scalar Phi) -> Exp R2 -> Exp R
 waves degree phi x = wrap $ waver degree 0
   where
     waver :: Int -> Exp Float -> Exp Float
     waver n acc
       | n == 0    = acc
-      | otherwise = waver (n - 1) (acc + wave (A.constant (fromIntegral n) * A.the th) x)
-
-    -- lift to a singleton array, else we generate new code with the embedded
-    -- constant at every frame
-    th = A.unit $ A.constant (pi / phi)
+      | otherwise = waver (n - 1) (acc + wave (A.constant (fromIntegral n) * A.the phi) x)
 
     wrap n
       = let n_  = A.truncate n :: Exp Int
@@ -104,7 +101,7 @@ point size scale ix = A.lift (adj x, adj y)
 
 -- Computation ----------------------------------------------------------------
 -- | Compute a single frame
-makeImage :: Size -> Scale -> Degree -> Phi -> Acc Bitmap
+makeImage :: Size -> Scale -> Degree -> Acc (Scalar Phi) -> Acc Bitmap
 makeImage size scale degree phi = arrPixels
   where
     -- Compute [0..1] values for the wave density at each point.
@@ -132,16 +129,20 @@ rampColour v = ra + g + b
 -- | Compute a single frame of the animation as a Gloss picture.
 --frame :: Size -> Scale -> Zoom -> Degree -> Float -> G.Picture
 
-frame :: Render -> Size -> Scale -> Zoom -> Degree -> Float -> G.Picture
-frame render size scale zoom degree time = G.scale zoom' zoom' pic
+frame :: Render -> Size -> Zoom -> Float -> G.Picture
+frame render size zoom time = G.scale zoom' zoom' pic
   where
     -- Scale the time to be the phi value of the animation. The action seems to
     -- slow down at increasing phi values, so we increase phi faster as time
     -- moves on.
     x           = 1 + (time ** 1.5) * 0.005
 
+    -- lift to a singleton array, else we would generate new code with the
+    -- constant embedded at every frame
+    phi         = A.fromList Z [pi / x]
+
     -- Compute the image
-    arrPixels   = render $ makeImage size scale degree x
+    arrPixels   = render phi
 
     -- Wrap the array data in a Foreign pointer and turn into a Gloss picture
     {-# NOINLINE rawData #-}
@@ -167,16 +168,18 @@ main
             zoom        = get optZoom config
             scale       = get optScale config
             degree      = get optDegree config
-            render      = run config
+            render      = run config $ makeImage size scale degree
+
+        void . evaluate $ render (A.fromList Z [0])
 
         if get optBench config
            then withArgs nops $ defaultMain
-                    [ bench "crystal" $ whnf (render . makeImage size scale degree) 1.0]
+                    [ bench "crystal" $ whnf render (A.fromList Z [1.0]) ]
 
            else G.animateInWindow
                     "Quasicrystals"
                     (size  * zoom, size * zoom)
                     (10, 10)
                     G.black
-                    (frame render size scale zoom degree)
+                    (frame render size zoom)
 
